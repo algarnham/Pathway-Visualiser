@@ -1,5 +1,3 @@
-
-
 library(shiny)
 library(RColorBrewer)
 library(limma)
@@ -16,7 +14,6 @@ library(GGally)
 library(threejs)
 library(htmlwidgets)
 library(visNetwork)
-library(AnnotationDbi)
 library(GO.db)
 library(shiny)
 library(DT)
@@ -42,11 +39,12 @@ ui <- fluidPage(
      tabPanel("GO network",
               sidebarLayout(
                 sidebarPanel(
-                  #textInput(inputId = "term_text", label=h4("Term search"), value="Enter term")
-                  selectizeInput(inputId = "term_text", label=h4("Term search"), choices=as.list(as.character(net_nodes$label)), selected=character(0), options = list(placeholder="Enter term", maxItems=1))
+                    textInput(inputId = "term_text", label=h4("Term search"), value="Enter term")
+                  #selectizeInput(inputId = "term_text", label=h4("Term search"), choices=as.list(as.character(net_nodes$label)), selected=character(0), options = list(placeholder="Enter term", maxItems=1))
                 ),
                 
                 mainPanel(
+                  conditionalPanel(condition = "input.Run",
                   visNetworkOutput("network"), 
                   #verbatimTextOutput("shiny_return")
                   h2("Selected Term"),
@@ -54,7 +52,7 @@ ui <- fluidPage(
                   #dataTableOutput("text")
                   br(),
                   h2("Perefery Terms"),
-                  DTOutput("table2")
+                  DTOutput("table2"))
                   )
                 )
               )
@@ -62,7 +60,6 @@ ui <- fluidPage(
 )
 
 server <- function(input, output, session) {
-
   network_input <- reactive({
     
     input$Run
@@ -141,20 +138,19 @@ server <- function(input, output, session) {
   
   observeEvent(input$current_node, {
     current_node <- input$current_node
-    #visNetworkProxy("network") %>% visSelectNodes(id = current_node)
     output$table <- renderDataTable({net_nodes()[net_nodes()$id==current_node, c("id","Term","Definition")]})
     output$table2 <- renderDataTable({net_nodes()[net_nodes()$id %in% unique(c(as.character(net_edges()$to[net_edges()$from==current_node]), as.character(net_edges()$from[net_edges()$to==current_node]))), c("id","Term","Definition")]}, width="50%")
   })
   
-  observe(input$term_text, {
-    isolate({
-      curent_node <- net_nodes()[grepl(input$term_text, net_nodes()$label), "id"]
-      visNetworkProxy("network") %>% visSelectNodes(id = curent_node)
-      output$table <- renderDataTable({net_nodes()[net_nodes()$id %in% curent_node, c("id","Term","Definition")]})
-      output$table2 <- renderDataTable({net_nodes()[net_nodes()$id %in% unique(c(as.character(net_edges()$to[net_edges()$from %in% curent_node]), as.character(net_edges()$from[net_edges()$to %in% curent_node]))), c("id","Term","Definition")]}, width="50%")
-    })
-  })
-  
+  # observe(input$term_text, {
+  #   isolate({
+  #     curent_node <- net_nodes()[grepl(input$term_text, net_nodes()$label), "id"]
+  #     visNetworkProxy("network") %>% visSelectNodes(id = curent_node)
+  #     output$table <- renderDataTable({net_nodes()[net_nodes()$id %in% curent_node, c("id","Term","Definition")]})
+  #     output$table2 <- renderDataTable({net_nodes()[net_nodes()$id %in% unique(c(as.character(net_edges()$to[net_edges()$from %in% curent_node]), as.character(net_edges()$from[net_edges()$to %in% curent_node]))), c("id","Term","Definition")]}, width="50%")
+  #   })
+  # })
+
   
   
   ####when have data

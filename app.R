@@ -39,20 +39,28 @@ ui <- fluidPage(
      tabPanel("GO network",
               sidebarLayout(
                 sidebarPanel(
-                    textInput(inputId = "term_text", label=h4("Term search"), value="Enter term")
+                  conditionalPanel(condition = "input.Run",
+                    uiOutput("terms")
+                    #textInput(uiOutput("goterms")),
+                    )
+                  # DTOutput("goterms"),
+                  # verbatimTextOutput("terms")
+                  
+                  
+                    #textInput(inputId = "", label=h4("Term search"), value="Enter term")
                   #selectizeInput(inputId = "term_text", label=h4("Term search"), choices=as.list(as.character(net_nodes$label)), selected=character(0), options = list(placeholder="Enter term", maxItems=1))
                 ),
                 
                 mainPanel(
                   conditionalPanel(condition = "input.Run",
-                  visNetworkOutput("network"), 
+                  visNetworkOutput("network")), 
                   #verbatimTextOutput("shiny_return")
                   h2("Selected Term"),
                   DTOutput("table"),
                   #dataTableOutput("text")
                   br(),
                   h2("Perefery Terms"),
-                  DTOutput("table2"))
+                  DTOutput("table2")
                   )
                 )
               )
@@ -136,10 +144,22 @@ server <- function(input, output, session) {
       visEvents(select = "function(nodes){Shiny.onInputChange('current_node', nodes.nodes);;}")
   })
   
+  
+  
   observeEvent(input$current_node, {
     current_node <- input$current_node
     output$table <- renderDataTable({net_nodes()[net_nodes()$id==current_node, c("id","Term","Definition")]})
-    output$table2 <- renderDataTable({net_nodes()[net_nodes()$id %in% unique(c(as.character(net_edges()$to[net_edges()$from==current_node]), as.character(net_edges()$from[net_edges()$to==current_node]))), c("id","Term","Definition")]}, width="50%")
+    output$table2 <- renderDataTable({net_nodes()[net_nodes()$id %in% unique(c(as.character(net_edges()$to[net_edges()$from==current_node]), as.character(net_edges()$from[net_edges()$to==current_node]))), c("id","Term","Definition")]})
+    # output$goterms <- renderText({as.list(as.character(net_nodes()$label))})
+    # output$goterms <- renderUI({current_node})
+    output$goterms <- renderDataTable({net_nodes()[,1:2]})
+    # output$terms <- renderPrint({
+    #     print(as.list(as.character(net_nodes()$label)))
+    #   })
+    output$terms <- renderUI({
+     selectInput("term_text", label = h4("Term search"),
+       choices = as.list(as.character(net_nodes()$label)), multiple = TRUE)
+     })
   })
   
   # observe(input$term_text, {

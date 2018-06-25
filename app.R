@@ -1,3 +1,5 @@
+
+
 library(shiny)
 library(RColorBrewer)
 library(limma)
@@ -14,9 +16,11 @@ library(GGally)
 library(threejs)
 library(htmlwidgets)
 library(visNetwork)
+library(AnnotationDbi)
 library(GO.db)
 library(shiny)
 library(DT)
+library(plyr)
 
 ui <- fluidPage(
    
@@ -28,9 +32,9 @@ ui <- fluidPage(
               p("Please upload your gene list below and specify the appropriate species and ontology. Currently Pathway VisualiseR supports human and mouse data."),
               fluidRow(
                 column(width=5, fileInput(inputId = "genes", label = h3("Gene list upload"), buttonLabel = "Browse", placeholder = "Enter file name"),
-                       checkboxGroupInput(inputId = "inputType", label=h3("Gene list type"), choices = list("Gene Symbol"="Symbol", "Entrez ID"="Entrez"))),
-                column(width=2, checkboxGroupInput(inputId = "species", label = h3("Species"), choices = list("Human"="Hs", "Mouse"="Mm"))),
-                column(width=3, checkboxGroupInput(inputId = "ont", label = h3("Ontology"), choices = list("Biological Process"= "BP", "Cellular Component"="CC", "Molecular Function"="MF")))
+                       radioButtons(inputId = "inputType", label=h3("Gene list type"), choices = list("Gene Symbol"="Symbol", "Entrez ID"="Entrez"))),
+                column(width=2, radioButtons(inputId = "species", label = h3("Species"), choices = list("Human"="Hs", "Mouse"="Mm"))),
+                column(width=3, radioButtons(inputId = "ont", label = h3("Ontology"), choices = list("Biological Process"= "BP", "Cellular Component"="CC", "Molecular Function"="MF")))
                 ),
               fluidRow(
                 actionButton(inputId = "Run", label = h4("Create network"))
@@ -39,42 +43,42 @@ ui <- fluidPage(
      tabPanel("GO network",
               sidebarLayout(
                 sidebarPanel(
+                  #textInput(inputId = "term_text", label=h4("Term search"), value="Enter term"),
+                  #selectizeInput(inputId = "term_text", label=h4("Term search"), choices=as.list(as.character("nodes$label")), selected=character(0), options = list(placeholder="Enter term", maxItems=1)),
                   conditionalPanel(condition = "input.Run",
-                    uiOutput("terms")
-                    #textInput(uiOutput("goterms")),
-                    )
-                  # DTOutput("goterms"),
-                  # verbatimTextOutput("terms")
-                  
-                  
-                    #textInput(inputId = "", label=h4("Term search"), value="Enter term")
-                  #selectizeInput(inputId = "term_text", label=h4("Term search"), choices=as.list(as.character(net_nodes$label)), selected=character(0), options = list(placeholder="Enter term", maxItems=1))
+                                   uiOutput("nodes"),
+                                   actionButton(inputId = "TermSearch", label = "Search"),
+                                   uiOutput("genes"),
+                                   actionButton(inputId = "GeneSearch", label= "Search")
+                                   )
                 ),
                 
                 mainPanel(
                   conditionalPanel(condition = "input.Run",
-                  visNetworkOutput("network")), 
-                  #verbatimTextOutput("shiny_return")
-                  h2("Selected Term"),
-                  DTOutput("table"),
-                  #dataTableOutput("text")
-                  br(),
-                  h2("Perefery Terms"),
-                  DTOutput("table2")
+                                   visNetworkOutput("network"), 
+                                   h2("Selected Term"),
+                                   DTOutput("table"),
+                                   br(),
+                                   h2("Periphery Terms"),
+                                   DTOutput("table2")
+                  )
                   )
                 )
               )
-     , widths = c(2,10))
+     , widths = c(2,10)
+     )
 )
 
 server <- function(input, output, session) {
-  network_input <- reactive({
+  
+  #get gene info
+  GeneInfo <- reactive({
     
     input$Run
     
     gene_type <- isolate(input$inputType)
     species <- isolate(input$species)
-    ont <- isolate(input$ont)
+    #ont <- isolate(input$ont)
     
     genes <- read.table(input$genes$datapath, header=FALSE)[,1]
     
@@ -91,11 +95,13 @@ server <- function(input, output, session) {
              Mm=assign("GeneInfo", select(org.Mm.eg.db, keys=genes, keytype = "ENTREZID", columns = "SYMBOL"))
       )
     }
+  })
+  
+  #get GO results
+  GO_terms_sig <- reactive({
     
-    #create factor designating genes of interest - required by topGO
-    GOI <- factor(GeneInfo$ENTREZID %in% GeneInfo$ENTREZID, levels = c(FALSE,TRUE))
-    levels(GOI) <- c(0,1)
-    names(GOI) <- GeneInfo$ENTREZID
+    species <- isolate(input$species)
+    ont <- isolate(input$ont)
     
     #get GO terms
     switch(species,
@@ -105,32 +111,64 @@ server <- function(input, output, session) {
     GO_terms <- lapply(GO_terms, function(x) unique(x))
     
     #for gene list only run goana to identify significant GO terms
-    GOres <- goana(de = GeneInfo$ENTREZID, species = species)
+    GOres <- goana(de = GeneInfo()$ENTREZID, species = species)
     GOres <- GOres[GOres$P.DE<0.05,]
     GO_terms_sig <- GO_terms[names(GO_terms) %in% row.names(GOres)]
+  })
+  
+  #create factor designating genes of interest - required by topGO
+  GOI <- reactive({
+    temp_GOI <- factor(GeneInfo()$ENTREZID %in% GeneInfo()$ENTREZID, levels = c(FALSE,TRUE))
+    levels(temp_GOI) <- c(0,1)
+    names(temp_GOI) <- GeneInfo()$ENTREZID
+    temp_GOI <- temp_GOI
+  })
+  
+  #create network
+  network_input <- reactive({  
     
-    #create network
+    ont <- isolate(input$ont)
+    
     #all terms need to have a min. of 10 genes to be included
-    topGO_net <- new("topGOdata", ontology=ont, allGenes=GOI, annotationFun=annFUN.GO2genes, GO2genes=GO_terms_sig, nodeSize=10)
-    topGO_graph <- graph(topGO_net)
+    topGO_net <- new("topGOdata", ontology=ont, allGenes=GOI(), annotationFun=annFUN.GO2genes, GO2genes=GO_terms_sig(), nodeSize=10)
+    #topGO_graph <- graph(topGO_net)
   })
   
   #get network edges
   net_edges <- reactive({
-    temp_edges <- edges(network_input())
+    temp_edges <- edges(graph(network_input()))
     temp_edges <- setNames(unlist(temp_edges, use.names = FALSE), rep(names(temp_edges), lengths(temp_edges)))
     temp_edges <- data.frame(from=names(temp_edges), to=temp_edges)
   })
   
   #get network nodes
   net_nodes <- reactive({
-    temp_nodes <- nodes(network_input())
+    
+    #node size
+    temp_nodes <- nodes(graph(network_input()))
+    value <- rep(10, length(temp_nodes))
+    names(value) <- temp_nodes
+    value[names(value) %in% names(GO_terms_sig())] <- 25
+    
+    GO_link <- paste0("http://amigo.geneontology.org/amigo/term/", temp_nodes)
+    
     temp_nodes <- data.frame(id=temp_nodes, 
                             label=suppressMessages(select(GO.db, keys=temp_nodes, columns = "TERM")$TERM), 
                             title=suppressMessages(select(GO.db, keys=temp_nodes, columns = "TERM")$TERM), 
                             Term=suppressMessages(select(GO.db, keys=temp_nodes, columns = "TERM")$TERM), 
                             Ontology=suppressMessages(select(GO.db, keys=temp_nodes, columns="ONTOLOGY")$ONTOLOGY),
-                            Definition=suppressMessages(select(GO.db, keys=temp_nodes, columns = "DEFINITION")$DEFINITION))
+                            Definition=suppressMessages(select(GO.db, keys=temp_nodes, columns = "DEFINITION")$DEFINITION),
+                            value=value,
+                            Website=GO_link)
+    
+    Genes <- ldply(genesInTerm(network_input()), function(x){paste0(x, collapse = ",")})
+    # Genes <- lapply(Genes, function(x){switch(species,
+    #                                           Hs=select(org.Hs.eg.db, keys=genes, keytype = "ENTREZID", columns = "SYMBOL"),
+    #                                           Mm=select(org.Mm.eg.db, keys=genes, keytype = "ENTREZID", columns = "SYMBOL")
+    #                                           )
+    #   })
+    
+    temp_nodes <- data.frame(temp_nodes, Genes=Genes[match(temp_nodes$id, Genes[,1]), 2])
   })
   
   #network visualization
@@ -144,33 +182,44 @@ server <- function(input, output, session) {
       visEvents(select = "function(nodes){Shiny.onInputChange('current_node', nodes.nodes);;}")
   })
   
-  
-  
+  output$nodes <- renderUI({
+    selectizeInput(inputId = "term_text", label=h4("Term search"), choices=as.list(as.character(net_nodes()$label)), selected=character(0), options = list(placeholder="Enter term", maxItems=1))
+  })
+
+  output$genes <- renderUI({
+    selectizeInput(inputId = "gene_search", label=h4("Gene search"), choices=as.list(GeneInfo()$SYMBOL))
+  })
+
   observeEvent(input$current_node, {
     current_node <- input$current_node
-    output$table <- renderDataTable({net_nodes()[net_nodes()$id==current_node, c("id","Term","Definition")]})
-    output$table2 <- renderDataTable({net_nodes()[net_nodes()$id %in% unique(c(as.character(net_edges()$to[net_edges()$from==current_node]), as.character(net_edges()$from[net_edges()$to==current_node]))), c("id","Term","Definition")]})
-    # output$goterms <- renderText({as.list(as.character(net_nodes()$label))})
-    # output$goterms <- renderUI({current_node})
-    output$goterms <- renderDataTable({net_nodes()[,1:2]})
-    # output$terms <- renderPrint({
-    #     print(as.list(as.character(net_nodes()$label)))
-    #   })
-    output$terms <- renderUI({
-     selectInput("term_text", label = h4("Term search"),
-       choices = as.list(as.character(net_nodes()$label)), multiple = TRUE)
-     })
+    #visNetworkProxy("network") %>% visSelectNodes(id = current_node)
+    output$table <- renderDataTable({net_nodes()[net_nodes()$id==current_node, c("id","Term","Definition","Website")]})
+    output$table2 <- renderDataTable({net_nodes()[net_nodes()$id %in% unique(c(as.character(net_edges()$to[net_edges()$from==current_node]), as.character(net_edges()$from[net_edges()$to==current_node]))), c("id","Term","Definition","Website")]}, width="50%")
   })
-  
-  # observe(input$term_text, {
-  #   isolate({
-  #     curent_node <- net_nodes()[grepl(input$term_text, net_nodes()$label), "id"]
-  #     visNetworkProxy("network") %>% visSelectNodes(id = curent_node)
-  #     output$table <- renderDataTable({net_nodes()[net_nodes()$id %in% curent_node, c("id","Term","Definition")]})
-  #     output$table2 <- renderDataTable({net_nodes()[net_nodes()$id %in% unique(c(as.character(net_edges()$to[net_edges()$from %in% curent_node]), as.character(net_edges()$from[net_edges()$to %in% curent_node]))), c("id","Term","Definition")]}, width="50%")
-  #   })
-  # })
 
+  observeEvent(input$TermSearch,  {
+      isolate({
+        current_node <- net_nodes()[grepl(input$term_text, net_nodes()$label), "id"]
+        visNetworkProxy("network") %>% visSelectNodes(id = current_node)
+        output$table <- renderDataTable({net_nodes()[net_nodes()$id %in% current_node, c("id","Term","Definition","Website")]})
+        output$table2 <- renderDataTable({net_nodes()[net_nodes()$id %in% unique(c(as.character(net_edges()$to[net_edges()$from %in% current_node]), as.character(net_edges()$from[net_edges()$to %in% current_node]))), c("id","Term","Definition","Website")]}, width="50%")
+      })
+  }
+  )
+
+  observeEvent(input$GeneSearch, {
+    isolate({
+      selected_gene <- GeneInfo()$ENTREZID[GeneInfo()$SYMBOL==input$gene_search]
+      current_node <- net_nodes()[grepl(selected_gene, net_nodes()$Genes), "id"]
+      visNetworkProxy("network") %>% visSelectNodes(id = current_node)
+      output$table <- renderDataTable({net_nodes()[net_nodes()$id %in% current_node, c("id","Term","Definition","Website")]})
+      #output$table2 <- renderDataTable()
+      output$table2 <- renderDataTable({net_nodes()[net_nodes()$id %in% unique(c(as.character(net_edges()$to[net_edges()$from %in% current_node]), as.character(net_edges()$from[net_edges()$to %in% current_node]))), c("id","Term","Definition","Website")]}, width="50%")
+    })
+  })
+
+
+  
   
   
   ####when have data

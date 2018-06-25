@@ -1,5 +1,7 @@
 
 
+
+
 library(shiny)
 library(RColorBrewer)
 library(limma)
@@ -130,7 +132,7 @@ server <- function(input, output, session) {
     ont <- isolate(input$ont)
     
     #all terms need to have a min. of 10 genes to be included
-    topGO_net <- new("topGOdata", ontology=ont, allGenes=GOI(), annotationFun=annFUN.GO2genes, GO2genes=GO_terms_sig(), nodeSize=10)
+    topGO_net <- new("topGOdata", ontology=ont, allGenes=GOI(), annot=annFUN.GO2genes, GO2genes=GO_terms_sig(), nodeSize=10)
     #topGO_graph <- graph(topGO_net)
   })
   
@@ -150,7 +152,8 @@ server <- function(input, output, session) {
     names(value) <- temp_nodes
     value[names(value) %in% names(GO_terms_sig())] <- 25
     
-    GO_link <- paste0("http://amigo.geneontology.org/amigo/term/", temp_nodes)
+    #hyperlinks
+    GO_link <- paste0("<a href='http://amigo.geneontology.org/amigo/term/", temp_nodes, "'> ", temp_nodes, "</a>")
     
     temp_nodes <- data.frame(id=temp_nodes, 
                             label=suppressMessages(select(GO.db, keys=temp_nodes, columns = "TERM")$TERM), 
@@ -159,8 +162,9 @@ server <- function(input, output, session) {
                             Ontology=suppressMessages(select(GO.db, keys=temp_nodes, columns="ONTOLOGY")$ONTOLOGY),
                             Definition=suppressMessages(select(GO.db, keys=temp_nodes, columns = "DEFINITION")$DEFINITION),
                             value=value,
-                            Website=GO_link)
+                            GO_ID=GO_link)
     
+    #genes with each term
     Genes <- ldply(genesInTerm(network_input()), function(x){paste0(x, collapse = ",")})
     # Genes <- lapply(Genes, function(x){switch(species,
     #                                           Hs=select(org.Hs.eg.db, keys=genes, keytype = "ENTREZID", columns = "SYMBOL"),
@@ -168,7 +172,7 @@ server <- function(input, output, session) {
     #                                           )
     #   })
     
-    temp_nodes <- data.frame(temp_nodes, Genes=Genes[match(temp_nodes$id, Genes[,1]), 2])
+    temp_nodes <- data.frame(temp_nodes, Genes=Genes[match(temp_nodes$id, Genes[,1]), 2], row.names = NULL)
   })
   
   #network visualization
@@ -182,41 +186,53 @@ server <- function(input, output, session) {
       visEvents(select = "function(nodes){Shiny.onInputChange('current_node', nodes.nodes);;}")
   })
   
+  #search list for GO terms(nodes)
   output$nodes <- renderUI({
     selectizeInput(inputId = "term_text", label=h4("Term search"), choices=as.list(as.character(net_nodes()$label)), selected=character(0), options = list(placeholder="Enter term", maxItems=1))
   })
 
+  #search list for genes
   output$genes <- renderUI({
     selectizeInput(inputId = "gene_search", label=h4("Gene search"), choices=as.list(GeneInfo()$SYMBOL))
   })
 
+  #event for clicking on term(node) in network
   observeEvent(input$current_node, {
     current_node <- input$current_node
     #visNetworkProxy("network") %>% visSelectNodes(id = current_node)
-    output$table <- renderDataTable({net_nodes()[net_nodes()$id==current_node, c("id","Term","Definition","Website")]})
-    output$table2 <- renderDataTable({net_nodes()[net_nodes()$id %in% unique(c(as.character(net_edges()$to[net_edges()$from==current_node]), as.character(net_edges()$from[net_edges()$to==current_node]))), c("id","Term","Definition","Website")]}, width="50%")
+    output$table <- renderDataTable({net_nodes()[net_nodes()$id==current_node, c("GO_ID","Term","Definition")]}, escape=FALSE)
+    output$table2 <- renderDataTable({net_nodes()[net_nodes()$id %in% unique(c(as.character(net_edges()$to[net_edges()$from==current_node]), as.character(net_edges()$from[net_edges()$to==current_node]))), c("GO_ID","Term","Definition")]}, escape=FALSE)
   })
 
+  #event for serching for term
   observeEvent(input$TermSearch,  {
       isolate({
         current_node <- net_nodes()[grepl(input$term_text, net_nodes()$label), "id"]
         visNetworkProxy("network") %>% visSelectNodes(id = current_node)
-        output$table <- renderDataTable({net_nodes()[net_nodes()$id %in% current_node, c("id","Term","Definition","Website")]})
-        output$table2 <- renderDataTable({net_nodes()[net_nodes()$id %in% unique(c(as.character(net_edges()$to[net_edges()$from %in% current_node]), as.character(net_edges()$from[net_edges()$to %in% current_node]))), c("id","Term","Definition","Website")]}, width="50%")
+        output$table <- renderDataTable({net_nodes()[net_nodes()$id %in% current_node, c("GO_ID","Term","Definition")]}, escape=FALSE)
+        output$table2 <- renderDataTable({net_nodes()[net_nodes()$id %in% unique(c(as.character(net_edges()$to[net_edges()$from %in% current_node]), as.character(net_edges()$from[net_edges()$to %in% current_node]))), c("GO_ID","Term","Definition")]}, escape=FALSE)
       })
-  }
-  )
+  })
 
+  #event for searching for gene
   observeEvent(input$GeneSearch, {
     isolate({
       selected_gene <- GeneInfo()$ENTREZID[GeneInfo()$SYMBOL==input$gene_search]
       current_node <- net_nodes()[grepl(selected_gene, net_nodes()$Genes), "id"]
       visNetworkProxy("network") %>% visSelectNodes(id = current_node)
-      output$table <- renderDataTable({net_nodes()[net_nodes()$id %in% current_node, c("id","Term","Definition","Website")]})
+      output$table <- renderDataTable({net_nodes()[net_nodes()$id %in% current_node, c("GO_ID","Term","Definition")]}, escape=FALSE)
       #output$table2 <- renderDataTable()
-      output$table2 <- renderDataTable({net_nodes()[net_nodes()$id %in% unique(c(as.character(net_edges()$to[net_edges()$from %in% current_node]), as.character(net_edges()$from[net_edges()$to %in% current_node]))), c("id","Term","Definition","Website")]}, width="50%")
+      output$table2 <- renderDataTable({net_nodes()[net_nodes()$id %in% unique(c(as.character(net_edges()$to[net_edges()$from %in% current_node]), as.character(net_edges()$from[net_edges()$to %in% current_node]))), c("GO_ID","Term","Definition")]}, escape=FALSE)
     })
   })
+  
+  #event for hyperlink - selecting GO id in table
+  #observeEvent(input$table_cell_clicked {
+  #  cell <- input$table_cell_clicked
+    
+  #})
+  
+  
 
 
   

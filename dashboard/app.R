@@ -29,7 +29,8 @@ library(plyr)
 options(shiny.maxRequestSize = 100*1024^2) # increase the size of the file can be uploaded
 
 header <- dashboardHeader(
-  title = "GOvisualiser",
+  #title = h4("Pathway-Visualiser"),
+    title = tags$a(tags$img(src='logoname-02.png', height=36, width=206)),
   titleWidth = 300
 )
 
@@ -46,7 +47,7 @@ body <- dashboardBody(
   tabItems(
     tabItem(
       tabName = "upload",
-      box(title = "Welcome to Govisualiser", width = 12, solidHeader = TRUE, status = "primary",
+      box(title = "Welcome to Pathway-Visualiser", width = 12, solidHeader = TRUE, status = "primary",
         p("Govisualiser is an interactive website that allows users to visualise network structure within GO database ADD link to GO. Mention visNetwork() and the version of softwares we use. Also Licenses.")),
       box(
         title = "UPLOAD DATA", width = 12, solidHeader = TRUE, status = "primary",

@@ -1,7 +1,3 @@
-
-
-
-
 library(shiny)
 library(RColorBrewer)
 library(limma)
@@ -25,7 +21,6 @@ library(DT)
 library(plyr)
 
 ui <- fluidPage(
-<<<<<<< HEAD
   
   titlePanel("Pathway VisualiseR"),
   
@@ -70,52 +65,6 @@ ui <- fluidPage(
     )
     , widths = c(2,10)
   )
-=======
-   
-   titlePanel("Pathway VisualiseR"),
-   
-   navlistPanel(
-     tabPanel("Data upload", 
-              p("Welcome blah blah blah"),
-              p("Please upload your gene list below and specify the appropriate species and ontology. Currently Pathway VisualiseR supports human and mouse data."),
-              fluidRow(
-                column(width=5, fileInput(inputId = "genes", label = h3("Gene list upload"), buttonLabel = "Browse", placeholder = "Enter file name"),
-                       radioButtons(inputId = "inputType", label=h3("Gene list type"), choices = list("Gene Symbol"="Symbol", "Entrez ID"="Entrez"))),
-                column(width=2, radioButtons(inputId = "species", label = h3("Species"), choices = list("Human"="Hs", "Mouse"="Mm"))),
-                column(width=3, radioButtons(inputId = "ont", label = h3("Ontology"), choices = list("Biological Process"= "BP", "Cellular Component"="CC", "Molecular Function"="MF")))
-                ),
-              fluidRow(
-                actionButton(inputId = "Run", label = h4("Create network"))
-              )
-              ),
-     tabPanel("GO network",
-              sidebarLayout(
-                sidebarPanel(
-                  #textInput(inputId = "term_text", label=h4("Term search"), value="Enter term"),
-                  #selectizeInput(inputId = "term_text", label=h4("Term search"), choices=as.list(as.character("nodes$label")), selected=character(0), options = list(placeholder="Enter term", maxItems=1)),
-                  conditionalPanel(condition = "input.Run",
-                                   uiOutput("nodes"),
-                                   actionButton(inputId = "TermSearch", label = "Search"),
-                                   uiOutput("genes"),
-                                   actionButton(inputId = "GeneSearch", label= "Search")
-                                   )
-                ),
-                
-                mainPanel(
-                  conditionalPanel(condition = "input.Run",
-                                   visNetworkOutput("network"), 
-                                   h2("Selected Term"),
-                                   DTOutput("table"),
-                                   br(),
-                                   h2("Periphery Terms"),
-                                   DTOutput("table2")
-                  )
-                  )
-                )
-              )
-     , widths = c(2,10)
-     )
->>>>>>> 413f83845e45d84147e78318896ca9ec44c71347
 )
 
 server <- function(input, output, session) {
@@ -203,7 +152,6 @@ server <- function(input, output, session) {
     GO_link <- paste0("<a href='http://amigo.geneontology.org/amigo/term/", temp_nodes, "'> ", temp_nodes, "</a>")
     
     temp_nodes <- data.frame(id=temp_nodes, 
-<<<<<<< HEAD
       label=suppressMessages(select(GO.db, keys=temp_nodes, columns = "TERM")$TERM), 
       title=suppressMessages(select(GO.db, keys=temp_nodes, columns = "TERM")$TERM), 
       Term=suppressMessages(select(GO.db, keys=temp_nodes, columns = "TERM")$TERM), 
@@ -211,15 +159,6 @@ server <- function(input, output, session) {
       Definition=suppressMessages(select(GO.db, keys=temp_nodes, columns = "DEFINITION")$DEFINITION),
       value=value,
       GO_ID=GO_link)
-=======
-                            label=suppressMessages(select(GO.db, keys=temp_nodes, columns = "TERM")$TERM), 
-                            title=suppressMessages(select(GO.db, keys=temp_nodes, columns = "TERM")$TERM), 
-                            Term=suppressMessages(select(GO.db, keys=temp_nodes, columns = "TERM")$TERM), 
-                            Ontology=suppressMessages(select(GO.db, keys=temp_nodes, columns="ONTOLOGY")$ONTOLOGY),
-                            Definition=suppressMessages(select(GO.db, keys=temp_nodes, columns = "DEFINITION")$DEFINITION),
-                            value=value,
-                            GO_ID=GO_link)
->>>>>>> 413f83845e45d84147e78318896ca9ec44c71347
     
     #genes with each term
     Genes <- ldply(genesInTerm(network_input()), function(x){paste0(x, collapse = ",")})
@@ -247,27 +186,18 @@ server <- function(input, output, session) {
   output$nodes <- renderUI({
     selectizeInput(inputId = "term_text", label=h4("Term search"), choices=as.list(as.character(net_nodes()$label)), selected=character(0), options = list(placeholder="Enter term", maxItems=1))
   })
-<<<<<<< HEAD
   
-=======
-
->>>>>>> 413f83845e45d84147e78318896ca9ec44c71347
   #search list for genes
   output$genes <- renderUI({
     selectizeInput(inputId = "gene_search", label=h4("Gene search"), choices=as.list(GeneInfo()$SYMBOL))
   })
-<<<<<<< HEAD
   
-=======
-
->>>>>>> 413f83845e45d84147e78318896ca9ec44c71347
   #event for clicking on term(node) in network
   observeEvent(input$current_node, {
     current_node <- input$current_node
     #visNetworkProxy("network") %>% visSelectNodes(id = current_node)
     output$table <- renderDataTable({net_nodes()[net_nodes()$id==current_node, c("GO_ID","Term","Definition")]}, escape=FALSE)
     output$table2 <- renderDataTable({net_nodes()[net_nodes()$id %in% unique(c(as.character(net_edges()$to[net_edges()$from==current_node]), as.character(net_edges()$from[net_edges()$to==current_node]))), c("GO_ID","Term","Definition")]}, escape=FALSE)
-<<<<<<< HEAD
   })
   
   #event for serching for term
@@ -301,41 +231,6 @@ server <- function(input, output, session) {
   
   
   
-=======
-  })
-
-  #event for serching for term
-  observeEvent(input$TermSearch,  {
-      isolate({
-        current_node <- net_nodes()[grepl(input$term_text, net_nodes()$label), "id"]
-        visNetworkProxy("network") %>% visSelectNodes(id = current_node)
-        output$table <- renderDataTable({net_nodes()[net_nodes()$id %in% current_node, c("GO_ID","Term","Definition")]}, escape=FALSE)
-        output$table2 <- renderDataTable({net_nodes()[net_nodes()$id %in% unique(c(as.character(net_edges()$to[net_edges()$from %in% current_node]), as.character(net_edges()$from[net_edges()$to %in% current_node]))), c("GO_ID","Term","Definition")]}, escape=FALSE)
-      })
-  })
-
-  #event for searching for gene
-  observeEvent(input$GeneSearch, {
-    isolate({
-      selected_gene <- GeneInfo()$ENTREZID[GeneInfo()$SYMBOL==input$gene_search]
-      current_node <- net_nodes()[grepl(selected_gene, net_nodes()$Genes), "id"]
-      visNetworkProxy("network") %>% visSelectNodes(id = current_node)
-      output$table <- renderDataTable({net_nodes()[net_nodes()$id %in% current_node, c("GO_ID","Term","Definition")]}, escape=FALSE)
-      #output$table2 <- renderDataTable()
-      output$table2 <- renderDataTable({net_nodes()[net_nodes()$id %in% unique(c(as.character(net_edges()$to[net_edges()$from %in% current_node]), as.character(net_edges()$from[net_edges()$to %in% current_node]))), c("GO_ID","Term","Definition")]}, escape=FALSE)
-    })
-  })
-  
-  #event for hyperlink - selecting GO id in table
-  #observeEvent(input$table_cell_clicked {
-  #  cell <- input$table_cell_clicked
-    
-  #})
-  
-  
-
-
->>>>>>> 413f83845e45d84147e78318896ca9ec44c71347
   
   
   

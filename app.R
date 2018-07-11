@@ -239,7 +239,8 @@ server <- function(input, output, session) {
     value[names(value) %in% names(GO_terms_sig())] <- 25
     
     #hyperlinks
-    GO_link <- paste0("<a href='http://amigo.geneontology.org/amigo/term/", temp_nodes, "'> ", temp_nodes, "</a>")
+    GO_link <- paste0("<a href='http://amigo.geneontology.org/amigo/term/", temp_nodes, "' target='_blank'> ", temp_nodes, "</a>")
+    #window.open(url)
     #GO_gene_link <- sprintf('<input type="radio" name="%s" value="%s"/>',
     #                        temp_nodes, temp_nodes)
     GO_genes <- shinyInput(actionButton, length(temp_nodes), "button_", label = "View", onclick = 'Shiny.onInputChange(\"select_button\",  this.id)')
@@ -289,12 +290,12 @@ server <- function(input, output, session) {
   
   #search list for GO terms(nodes)
   output$nodes <- renderUI({
-    selectizeInput(inputId = "term_text", label=h4("Term search"), choices=as.list(as.character(net_nodes()$label)), selected=character(0), options = list(placeholder="Enter term", maxItems=1))
+    selectizeInput(inputId = "term_text", label=h4("Term search"), choices=as.list(as.character(net_nodes()$label)), selected="", multiple=TRUE, options = list(placeholder="Enter term", maxItems=1))
   })
   
   #search list for genes
   output$genes <- renderUI({
-    selectizeInput(inputId = "gene_search", label=h4("Gene search"), choices=as.list(GeneInfo()$SYMBOL), options=list(placeholder="Enter gene"))
+    selectizeInput(inputId = "gene_search", label=h4("Gene search"), choices=as.list(GeneInfo()$SYMBOL), options=list(placeholder="Enter gene"), selected="", multiple=TRUE)
   })
   
   #event for clicking on term(node) in network
@@ -322,7 +323,7 @@ server <- function(input, output, session) {
   #event for searching for gene
   observeEvent(input$GeneSearch, {
     isolate({
-      selected_gene <- GeneInfo()$ENTREZID[GeneInfo()$SYMBOL==input$gene_search]
+      selected_gene <- GeneInfo()$ENTREZID[GeneInfo()$SYMBOL %in% input$gene_search]
       current_node <- net_nodes()[grepl(selected_gene, net_nodes()$Genes), "id"]
       visNetworkProxy("network") %>% visSelectNodes(id = current_node)
       output$table <- renderDataTable({net_nodes()[net_nodes()$id %in% current_node, c("GO ID", "Term","Definition", "PValue", "Number Genes", "View Genes")]}, 
